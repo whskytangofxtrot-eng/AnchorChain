@@ -15,6 +15,13 @@ The preloader waits for Sea Power's mod-directory refresh, checks the in-game
 mod selections, and loads only checked code mods. Checkbox changes require a
 restart. It leaves subscribed Workshop files untouched.
 
+Version 1.0.3 also stops AnchorChain 1.1.0's endless startup retry loop when no
+remaining mod can initialize. The original exception and failed mod name stay
+in BepInEx/LogOutput.log. A warning at the main menu names the affected mods and
+explains how to recover. This protection applies with the DCM patch enabled or
+disabled. It does not repair incompatible mods or undo their partial startup
+changes: disable the failed mod and restart Sea Power before playing.
+
 With the DCM patch enabled, the separate Workshop helper prepares a verified
 local cache from the player's original DCM DLL. With that patch disabled, the
 preloader loads the original code of enabled mods; DCM's original beta
@@ -23,7 +30,7 @@ incompatibilities may return. The loader never downloads or auto-updates code.
 BUILD FROM SOURCE
 Requires the .NET 8 SDK and a local installation of the supported Sea Power
 beta, BepInEx and AnchorChain. Run build-preloader.ps1 with -GameDirectory set
-to the game's installation folder. It compiles AnchorChain.Preloader/Preloader.cs
+to the game's installation folder. It compiles the AnchorChain.Preloader sources
 against your local game/BepInEx references and writes bin/AnchorChain.Preloader.dll.
 It does not copy anything into your game or redistribute game reference DLLs.
 

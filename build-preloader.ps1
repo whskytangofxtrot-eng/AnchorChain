@@ -3,7 +3,7 @@ $ErrorActionPreference='Stop'
 $gamePath=(Resolve-Path -LiteralPath $GameDirectory).Path
 $managed=Join-Path $gamePath 'Sea Power_Data\Managed'
 $core=Join-Path $gamePath 'BepInEx\core'
-foreach($required in @((Join-Path $managed 'Seapower-Scripts.dll'),(Join-Path $core 'BepInEx.dll'),(Join-Path $core 'Mono.Cecil.dll'))){
+foreach($required in @((Join-Path $managed 'Seapower-Scripts.dll'),(Join-Path $core 'BepInEx.dll'),(Join-Path $core 'Mono.Cecil.dll'),(Join-Path $core '0Harmony.dll'))){
  if(-not(Test-Path -LiteralPath $required)){throw 'The selected game folder does not contain the required game and BepInEx references.'}
 }
 $sdkLine=@(& dotnet --list-sdks | Where-Object {$_ -match '^8\.'})[-1]
@@ -13,8 +13,10 @@ $output=Join-Path $PSScriptRoot 'bin'
 New-Item -ItemType Directory -Path $output -Force | Out-Null
 $arguments=@('/nostdlib+','/target:library','/optimize+','/langversion:latest',('/out:"'+(Join-Path $output 'AnchorChain.Preloader.dll')+'"'))
 foreach($file in Get-ChildItem -LiteralPath $managed -Filter '*.dll' -File | Sort-Object Name){$arguments+='/reference:"'+$file.FullName+'"'}
-foreach($name in @('BepInEx.dll','Mono.Cecil.dll')){$arguments+='/reference:"'+(Join-Path $core $name)+'"'}
+foreach($name in @('BepInEx.dll','Mono.Cecil.dll','0Harmony.dll')){$arguments+='/reference:"'+(Join-Path $core $name)+'"'}
 $arguments+='"'+(Join-Path $PSScriptRoot 'AnchorChain.Preloader\Preloader.cs')+'"'
+$arguments+='"'+(Join-Path $PSScriptRoot 'AnchorChain.Preloader\AnchorChainStartupGuard.cs')+'"'
+$arguments+='"'+(Join-Path $PSScriptRoot 'AnchorChain.Preloader\StartupFailureReport.cs')+'"'
 $response=Join-Path $output 'preloader-build.rsp'
 $arguments | Set-Content -LiteralPath $response
 & dotnet $compiler ('@'+$response)
