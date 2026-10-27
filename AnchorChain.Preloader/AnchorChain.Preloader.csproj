@@ -21,6 +21,10 @@
             <HintPath>$(GameDirectory)\Sea Power_Data\Managed\Seapower-Scripts.dll</HintPath>
             <Private>False</Private>
         </Reference>
+        <Reference Include="Noesis.NoesisGUI">
+            <HintPath>$(GameDirectory)\Sea Power_Data\Managed\Noesis.NoesisGUI.dll</HintPath>
+            <Private>False</Private>
+        </Reference>
         <Reference Include="UnityEngine">
             <HintPath>$(GameDirectory)\Sea Power_Data\Managed\UnityEngine.dll</HintPath>
             <Private>False</Private>

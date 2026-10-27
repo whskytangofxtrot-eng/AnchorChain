@@ -11,19 +11,21 @@ using Mono.Cecil;
 [assembly: AssemblyTitle("AnchorChain beta preloader compatibility update")]
 [assembly: AssemblyCompany("WhskyTangoFxtrot")]
 [assembly: AssemblyVersion("1.0.0.0")]
-[assembly: AssemblyFileVersion("1.0.2.0")]
+[assembly: AssemblyFileVersion("1.0.3.0")]
 
 namespace AnchorChain.Preloader
 {
     // Keep the existing public interface and plugin ID so AnchorChain 1.1 can
     // use this replacement without being recompiled or replaced itself.
     public interface IPluginLoader { void LoadPlugins(); }
-    [BepInPlugin("io.github.seapower_modders.anchorchain_preloader","AnchorChain Preloader - Beta Compatibility","1.0.2")]
+    [BepInPlugin("io.github.seapower_modders.anchorchain_preloader","AnchorChain Preloader - Beta Compatibility","1.0.3")]
     public sealed class AnchorChainPreloader : BaseUnityPlugin
     {
         private static string[] enabledFolders;
         private static string anchorFile;
         private static Assembly anchorAssembly;
+        private string[] failedMods = new string[0];
+        private bool startupRetriesStopped;
         public static bool IsEnabledModFile(string path)
         {
             string full=Path.GetFullPath(path);
@@ -68,6 +70,30 @@ namespace AnchorChain.Preloader
                 yield return null;
             }
             try { Load(); } catch(Exception error) {Logger.LogError("AnchorChain startup failed: "+error);}
+            if(startupRetriesStopped) yield return ShowStartupFailureNotice();
+        }
+        private IEnumerator ShowStartupFailureNotice()
+        {
+            // The game's native dialog model is internal, although its public
+            // properties and routed window commands are usable by mods.
+            var messageType=typeof(FileManager).Assembly.GetType("SeapowerUI.ViewModels.MessageBoxViewModel",true);
+            var message=Activator.CreateInstance(messageType);
+            messageType.GetProperty("Header").SetValue(message,"Code mod failed to start",null);
+            messageType.GetProperty("MessageBoxType").SetValue(message,SeapowerUI.ViewModels.MessageBoxType.Warning,null);
+            messageType.GetProperty("Message").SetValue(message,StartupFailureReport.BuildNotice(failedMods),null);
+            messageType.GetProperty("AcknowledgeCommandLabel").SetValue(message,"OK",null);
+            float started=Time.realtimeSinceStartup;
+            // Wait for the actual menu, after any launch-recovery prompt.
+            while(SeapowerUI.MainMenuView.Instance==null ||
+                !SeapowerUI.WindowHostCommands.OpenWindowCommand.CanExecute(message,SeapowerUI.MainMenuView.Instance))
+            {
+                if(Time.realtimeSinceStartup-started>180f){Logger.LogWarning("The mod failure notice could not be shown because the main menu did not become ready.");yield break;}
+                yield return new WaitForSecondsRealtime(0.25f);
+            }
+            var context=SeapowerUI.MainMenuView.Instance;
+            messageType.GetProperty("AcknowledgeCommand").SetValue(message,new DelegateCommand(_=>SeapowerUI.WindowHostCommands.CloseWindowCommand.Execute(message,context)),null);
+            SeapowerUI.WindowHostCommands.OpenWindowCommand.Execute(message,context);
+            Logger.LogInfo("Startup failure notice displayed for: "+string.Join(", ",failedMods));
         }
         private void Load()
         {
@@ -88,7 +114,18 @@ namespace AnchorChain.Preloader
             }
             else { chain=LoadFilteredAnchorChain(chainPaths[0]);Logger.LogInfo("DCM compatibility patch is disabled or absent; original mod code will be loaded only from checked directories."); }
             var loader=chain.GetType("AnchorChain.AnchorChainLoader",true);
-            ((IPluginLoader)Activator.CreateInstance(loader)).LoadPlugins();
+            AnchorChainStartupGuard.StartupStopped=()=>{
+                startupRetriesStopped=true;
+                Logger.LogError("Stopped AnchorChain startup retries after a code mod failed. The error above names the affected mod. Disable that mod and restart Sea Power before playing; it may have partially initialized.");
+            };
+            AnchorChainStartupGuard.Apply(loader);
+            Logger.LogInfo("AnchorChain startup retry guard installed.");
+            using(var report=new StartupFailureReport())
+            {
+                BepInEx.Logging.Logger.Listeners.Add(report);
+                try { ((IPluginLoader)Activator.CreateInstance(loader)).LoadPlugins(); }
+                finally { BepInEx.Logging.Logger.Listeners.Remove(report);failedMods=report.GetFailedModNames(); }
+            }
         }
     }
 }
